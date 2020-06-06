@@ -6,14 +6,18 @@ import re
 import threading
 import requests
 import xlwt
-
+config_fp = open("./config.json","r",encoding="utf-8")
+config_data = json.load(config_fp)
+config_fp.close()
+HOST = config_data["host"]
+PORT = config_data["port"]
 class Crawler(object):
     def __init__(self):
         config_path = open(r'./config.json','r',encoding="utf-8")  #读取配置文件
         time.sleep(0.1) # 设置延迟
         self.rank_url = json.load(config_path)["page"]["全站榜"]["三日榜"] #参照配置文件进行选择
         config_path.close()
-        self.base_url = "https://api.bilibili.com/archive_stat/stat?aid="
+        self.base_url = "https://api.bilibili.com/archive_stat/stat?aid="   #视频详细信息的接口
         self.danmu_url = 'https://api.bilibili.com/x/v2/dm/history?type=1&oid='
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.116 Mobile Safari/537.36",
@@ -35,6 +39,7 @@ class Crawler(object):
         self.__get_data_from_internet()
         self.__analytical_data()
         self.__detail_analytical()
+        self.__video_detail_get()
         self.__multi_threading()
         self.__save_as_excel()
         config_path = open(r'./config.json', 'r', encoding="utf-8")
@@ -43,14 +48,14 @@ class Crawler(object):
         config_path.close()
 
         '''
-        给出相关的网址链接和伪造请求头,并执行一些函数
+        给出相关的网址链接和伪造请求头,读取配置信息，并执行一些函数
         '''
 
 
     def __multi_threading(self):
         self.g_lock = threading.Lock()
         th1 = threading.Thread(target=self.__download_picture)
-        th2 = threading.Thread(target=self.__danmu_crawler_oneday,args=(0,10))
+        th2 = threading.Thread(target=self.__danmu_crawler_oneday, args=(0,10))
         th3 = threading.Thread(target=self.__danmu_crawler_oneday, args=(10, 20))
         th4 = threading.Thread(target=self.__danmu_crawler_oneday, args=(20, 30))
         th5 = threading.Thread(target=self.__danmu_crawler_oneday, args=(30, 40))
@@ -63,6 +68,7 @@ class Crawler(object):
         th6.start()
     '''
      启用多线程爬虫,这里的弹幕爬虫只爬取单日的，多日爬虫真的太容易被禁止访问了
+     因为访问弹幕的接口速度比其他的慢，所以在进程中给弹幕爬取设置五个线程
     '''
 
     def __get_data_from_internet(self):
@@ -139,6 +145,27 @@ class Crawler(object):
         '''
         对元素为字典的列表中的数据做细节分析，并存放到新的列表中
         '''
+
+    def __video_detail_get(self):
+        index = 0
+        for dic in self.new_video_data_list:
+            aid = dic["aid"]
+            intact_url = self.base_url + str(aid)
+            resp = requests.get(url=intact_url, headers=self.headers).content.decode("utf-8")
+            data_dic = json.loads(resp)
+            temp_dic = {
+                "播放量":data_dic["data"]["view"],
+                "弹幕总量":data_dic["data"]["danmaku"],
+                "评论数":data_dic["data"]["reply"],
+                "点赞数":data_dic["data"]["favorite"],
+                "投币数":data_dic["data"]["coin"],
+                "分享数":data_dic["data"]["share"]
+            }
+            dictMerged = dict(dic, **temp_dic)
+            self.new_video_data_list[index] = dictMerged
+            index += 1
+            time.sleep(0.5)
+
     def __danmu_crawler_all(self,i,j):
         self.g_lock.acquire()
         self.i,self.j = i,j
@@ -158,7 +185,7 @@ class Crawler(object):
                 new_path = path + (str(today_add_1)+"时的弹幕.txt")     #设置文件名
                 resp = requests.get(url=url_first+today_add_1,headers=self.page_headers).content.decode("utf-8")
                 with open(new_path,'w',encoding='utf-8') as fp:
-                    print("正在对%s作出处理".format(new_path))
+                    print("正在对%{}作出处理".format(new_path))
                     ls = re.findall(r"<d p=.*?>(.*?)</d>", resp, re.DOTALL)     #对爬取的xml文件做进一步处理以获取纯弹幕
                     data = str(ls)
                     fp.write(data)
@@ -187,7 +214,7 @@ class Crawler(object):
             print("正在下载视频{}的弹幕".format(video_data["BV号"]))
             resp = requests.get(url=url, headers=self.page_headers).content.decode("utf-8")
             with open(path, 'w', encoding='utf-8') as fp:
-                print("正在对%s作出处理".format(path))
+                print("正在对{}作出处理".format(path))
                 ls = re.findall(r"<d p=.*?>(.*?)</d>", resp, re.DOTALL)  # 对爬取的xml文件做进一步处理以获取纯弹幕
                 data = str(ls)
                 fp.write(data)
@@ -244,19 +271,12 @@ class Crawler(object):
         '''
     def __save_to_mongodb(self):
         import pymongo #导入模块
-        self.client = pymongo.MongoClient(host="127.0.0.1", port=27017) #创建client对象
+        self.client = pymongo.MongoClient(host=HOST, port=PORT) #创建client对象
         self.db = self.client["B站"]     #创建数据库对象
         self.collection1 = self.db["video_data"]        #创建集合
         self.collection2 = self.db["up_data"]
         self.collection1.insert_many(self.new_video_data_list)  #插入文档
         self.collection2.insert_many(self.new_up_data_list)
-
-
-    def fun(self):
-        print(self.new_video_data_list)
-        print(self.new_up_data_list)
-        print(self.danmu_id_list)
-
 
 if __name__ == '__main__':
     print("开始启动爬虫")
