@@ -1,0 +1,21 @@
+{
+  "page": {
+    "原创榜": {
+      "日榜": "https://www.bilibili.com/ranking/origin/0/0/1",
+      "三日榜": "https://www.bilibili.com/ranking/origin/0/0/3",
+      "月榜": "https://www.bilibili.com/ranking/origin/0/0/30"
+    },
+    "全站榜": {
+      "日榜": "https://www.bilibili.com/ranking/all/0/0/1",
+      "三日榜": "https://www.bilibili.com/ranking/all/0/0/3",
+      "月榜": "https://www.bilibili.com/ranking/all/0/0/30"
+    },
+    "新人榜": {
+      "日榜": "https://www.bilibili.com/ranking/rookie/0/0/1",
+      "三日榜": "https://www.bilibili.com/ranking/rookie/0/0/3",
+      "月榜": "https://www.bilibili.com/ranking/rookie/0/0/30"
+    }
+  },
+  "cookie": "CURRENT_FNVAL=16; LIVE_BUVID=AUTO2215862798949259; rpdid=|(um|JYY)Ju|0J'ul)Yk~mm|J; bp_t_offset_437841608=397734115012325491; CURRENT_QUALITY=80; sid=i0q0c4cz; _jct=ccbc74b0a7ea11eab017125507376e1b; DedeUserID=604123808; DedeUserID__ckMd5=c62297d6f28c2def; SESSDATA=8620f392%2C1606995832%2C67beb*61; bili_jct=20ec7519871bd5f45141398d0bae5699",
+  "mongodb": 0
+}

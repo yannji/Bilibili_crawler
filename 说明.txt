@@ -1,0 +1,8 @@
+需要安装的第三方库
+pip install -r require.txt
+启动程序
+python rank_crawler.py
+配置文件
+config.json  可以更换cookie；可以设置是否将数据保存到MongoDB数据库（先要安装和配置MongoDB数据库）；可以在rank_crawler.py文件中更换要爬取的页面;
+
+注意：如果爬取不成功，大概率是cookie失效，请更换cookie后再次尝试，更换的cookie最好是另外一个账号的，否则仍有可能不成功
