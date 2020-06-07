@@ -6,26 +6,21 @@ import re
 import threading
 import requests
 import xlwt
-config_fp = open("./config.json","r",encoding="utf-8")
-config_data = json.load(config_fp)
-config_fp.close()
-HOST = config_data["host"]
-PORT = config_data["port"]
+
 class Crawler(object):
     def __init__(self):
-        config_path = open(r'./config.json','r',encoding="utf-8")  #读取配置文件
-        time.sleep(0.1) # 设置延迟
-        self.rank_url = json.load(config_path)["page"]["全站榜"]["三日榜"] #参照配置文件进行选择
-        config_path.close()
+        config_fp = open("./config.json", "r", encoding="utf-8")  #读取配置文件
+        self.config_data = json.load(config_fp)
+        config_fp.close()
+        self.rank_url = self.config_data["page"]["全站榜"]["三日榜"] #参照配置文件进行选择
         self.base_url = "https://api.bilibili.com/archive_stat/stat?aid="   #视频详细信息的接口
-        self.danmu_url = 'https://api.bilibili.com/x/v2/dm/history?type=1&oid='
+        self.danmu_url = 'https://api.bilibili.com/x/v2/dm/history?type=1&oid='   #弹幕的接口
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.116 Mobile Safari/537.36",
             "Referer": "https://www.bilibili.com/"
-        }
+        }                           #排行榜页面所使用的请求头
         try:
-            config_path = open(r'./config.json', 'r', encoding="utf-8")
-            self.cookie = json.load(config_path)["cookie"]
+            self.cookie = self.config_data["cookie"]        #获取设置的cookie信息
         except Exception as result:
             exit(result)
         self.page_headers = {
@@ -33,20 +28,15 @@ class Crawler(object):
             'User-Agent': ('Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36'
                            '(KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36'),
             "Cookie":self.cookie
-        }
-
-        config_path.close()
+        }                       #获取单个视频信息所使用的请求头
         self.__get_data_from_internet()
         self.__analytical_data()
         self.__detail_analytical()
         self.__video_detail_get()
         self.__multi_threading()
         self.__save_as_excel()
-        config_path = open(r'./config.json', 'r', encoding="utf-8")
-        if json.load(config_path)["mongodb"]:
+        if self.config_data["mongodb"]:
             self.__save_to_mongodb()
-        config_path.close()
-
         '''
         给出相关的网址链接和伪造请求头,读取配置信息，并执行一些函数
         '''
@@ -55,11 +45,11 @@ class Crawler(object):
     def __multi_threading(self):
         self.g_lock = threading.Lock()
         th1 = threading.Thread(target=self.__download_picture)
-        th2 = threading.Thread(target=self.__danmu_crawler_oneday, args=(0,10))
-        th3 = threading.Thread(target=self.__danmu_crawler_oneday, args=(10, 20))
-        th4 = threading.Thread(target=self.__danmu_crawler_oneday, args=(20, 30))
-        th5 = threading.Thread(target=self.__danmu_crawler_oneday, args=(30, 40))
-        th6 = threading.Thread(target=self.__danmu_crawler_oneday, args=(40, 51))
+        th2 = threading.Thread(target=self.__danmu_crawler_oneday, args=(0,20))
+        th3 = threading.Thread(target=self.__danmu_crawler_oneday, args=(20,40))
+        th4 = threading.Thread(target=self.__danmu_crawler_oneday, args=(40,60))
+        th5 = threading.Thread(target=self.__danmu_crawler_oneday, args=(60,80))
+        th6 = threading.Thread(target=self.__danmu_crawler_oneday, args=(80,101))
         th1.start()
         th2.start()
         th3.start()
@@ -68,14 +58,13 @@ class Crawler(object):
         th6.start()
     '''
      启用多线程爬虫,这里的弹幕爬虫只爬取单日的，多日爬虫真的太容易被禁止访问了
-     因为访问弹幕的接口速度比其他的慢，所以在进程中给弹幕爬取设置五个线程
+     在整个进程中给弹幕的爬取设置五个线程
     '''
 
     def __get_data_from_internet(self):
         self.resp = requests.get(self.rank_url, headers=self.headers)
         self.text = self.resp.content.decode('utf-8')
         self.page_link_list = re.findall(r'<div class="info">.*?<a href="(.*?)".target=', self.text, re.DOTALL)
-        time.sleep(1)
         self.video_data_list = []
         self.up_data_list = []
         self.danmu_id_list = []
@@ -112,7 +101,7 @@ class Crawler(object):
             except Exception as result:
                 print(result)
         '''
-               对数据做进一步的分析，将列表中的元组拆包，并反序列化成字典，
+               对数据做进一步的处理，将列表中的元组拆包，并反序列化成字典，
                并将反序列化的视频信息和up主信息分别加入到列表self.video_dic_list和self.up_dic_list中
                '''
     def __detail_analytical(self):
@@ -126,7 +115,7 @@ class Crawler(object):
                 "封面图片地址":video_data['pic'],
                 "标题":video_data['title'],
                 "发布日期":time.strftime('%Y-%m-%d',time.gmtime(video_data['pubdate'])),
-                "发布的精准日期":time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime(video_data['pubdate'])),
+                "发布的精准时间":time.strftime('%Y-%m-%d %H:%M:%S',time.gmtime(video_data['pubdate'])),
                 "视频描述":video_data['desc'],
                 "视频时长（秒）":video_data['duration'],
                 "视频集数":video_data['videos']
@@ -151,6 +140,8 @@ class Crawler(object):
         for dic in self.new_video_data_list:
             aid = dic["aid"]
             intact_url = self.base_url + str(aid)
+            print("正在获取视频{}的详细信息".format(dic["BV号"]))
+            time.sleep(0.1)
             resp = requests.get(url=intact_url, headers=self.headers).content.decode("utf-8")
             data_dic = json.loads(resp)
             temp_dic = {
@@ -164,7 +155,6 @@ class Crawler(object):
             dictMerged = dict(dic, **temp_dic)
             self.new_video_data_list[index] = dictMerged
             index += 1
-            time.sleep(0.5)
 
     def __danmu_crawler_all(self,i,j):
         self.g_lock.acquire()
@@ -185,15 +175,16 @@ class Crawler(object):
                 new_path = path + (str(today_add_1)+"时的弹幕.txt")     #设置文件名
                 resp = requests.get(url=url_first+today_add_1,headers=self.page_headers).content.decode("utf-8")
                 with open(new_path,'w',encoding='utf-8') as fp:
-                    print("正在对%{}作出处理".format(new_path))
+                    print("正在下载%{}并对其作出处理".format(new_path))
                     ls = re.findall(r"<d p=.*?>(.*?)</d>", resp, re.DOTALL)     #对爬取的xml文件做进一步处理以获取纯弹幕
                     data = str(ls)
                     fp.write(data)
                     fp.write("\n日期为：")
                     fp.write(str(today_add_1))
                 today_add_1 = (datetime.datetime.strptime(today_add_1,"%Y-%m-%d") + datetime.timedelta(days=1)).strftime("%Y-%m-%d") #增加一天
+                time.sleep(1) #设置延迟，可尽量调大写，过小太容易被禁止访问，禁止后更换只要更换配置文件中的cookie即可
             id_index +=1
-        time.sleep(2)         #设置延迟，可尽量调大写，过小太容易被禁止访问，禁止后更换只要更换配置文件中的cookie即可
+
         self.g_lock.release()
         '''
         爬取自发布日期起的弹幕并储存文件
@@ -229,6 +220,7 @@ class Crawler(object):
                 '''
 
     def __download_picture(self):
+        self.g_lock.acquire()
         self.path = r'E:\数据\封面图片'
         self.folder = os.path.exists(self.path)
         if not self.folder:            # 判断是否存在文件夹如果不存在则创建为文件夹
@@ -240,6 +232,7 @@ class Crawler(object):
                 fp.write(pic)
                 fp.close()
             time.sleep(0.1)         #设置延迟以防被禁
+        self.g_lock.release()
     '''
     封面图片的下载
     '''
@@ -271,6 +264,8 @@ class Crawler(object):
         '''
     def __save_to_mongodb(self):
         import pymongo #导入模块
+        HOST = self.config_data["host"]
+        PORT = self.config_data["port"]
         self.client = pymongo.MongoClient(host=HOST, port=PORT) #创建client对象
         self.db = self.client["B站"]     #创建数据库对象
         self.collection1 = self.db["video_data"]        #创建集合
